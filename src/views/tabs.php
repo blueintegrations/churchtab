@@ -1,0 +1,497 @@
+<?php
+require_once __DIR__ . '/../models/Tab.php';
+
+if (!isset($_SESSION['user_id'])) {
+    header('Location: /index.php?action=login');
+    exit;
+}
+
+$tab = new Tab();
+$searchQuery = $_GET['search'] ?? '';
+$tabs = $searchQuery ? $tab->search($searchQuery) : $tab->getAllTabs();
+$viewTab = isset($_GET['view_tab']) ? intval($_GET['view_tab']) : null;
+
+// Handle scheduling a tab
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if ($_POST['action'] === 'schedule_tab') {
+        $tabId = $_POST['tab_id'] ?? null;
+        $scheduleDate = $_POST['schedule_date'] ?? null;
+        $displayOrder = $_POST['display_order'] ?? null;
+        
+        if ($tabId && $scheduleDate) {
+            $tab->scheduleTab($tabId, $scheduleDate, $displayOrder);
+            header('Location: /index.php?action=schedule&date=' . urlencode($scheduleDate));
+            exit;
+        }
+    } elseif ($_POST['action'] === 'update_youtube') {
+        $tabId = $_POST['tab_id'] ?? null;
+        $scheduleDate = $_POST['schedule_date'] ?? null;
+        $youtubeLink = $_POST['youtube_link'] ?? null;
+        
+        if ($tabId && $scheduleDate) {
+            $tab->updateYoutubeLink($tabId, $scheduleDate, $youtubeLink);
+            header('Location: /index.php?action=tabs&view_tab=' . urlencode($tabId));
+            exit;
+        }
+    }
+}
+
+// Helper function to safely display potentially null values
+function safeHtml($value) {
+    return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
+}
+
+// Helper function to format content for display
+function formatContent($content) {
+    // Process content here if needed
+    $content = preg_replace('/\[([^\]]+)\]/', '<span class="chord">[$1]</span>', $content);
+    
+    return nl2br($content);
+}
+?>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ChurchTab - Tabs</title>
+    <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="nav">
+            <ul class="nav-list">
+                <li class="nav-item"><a href="/index.php">Home</a></li>
+                <li class="nav-item"><a href="/index.php?action=tabs">Tabs</a></li>
+                <?php if ($_SESSION['is_admin'] ?? false): ?>
+                    <li class="nav-item"><a href="/index.php?action=add_tab">Add Tab</a></li>
+                <?php endif; ?>
+                <li class="nav-item"><a href="/index.php?action=schedule">Schedule</a></li>
+                <?php if ($_SESSION['is_admin'] ?? false): ?>
+                    <li class="nav-item"><a href="/index.php?action=admin">Admin</a></li>
+                <?php endif; ?>
+            </ul>
+        </nav>
+
+        <h1>Guitar Tabs</h1>
+
+        <!-- Search Form -->
+        <div class="search-box">
+            <form method="get" action="/index.php" class="server-search">
+                <input type="hidden" name="action" value="tabs">
+                <div class="form-group">
+                    <input type="text" name="search" id="serverSearch" placeholder="Search tabs..." value="<?php echo safeHtml($searchQuery); ?>">
+                    <button type="submit">Server Search</button>
+                </div>
+            </form>
+            <div class="form-group">
+                <input type="text" id="clientSearch" placeholder="Quick search..." class="quick-search">
+            </div>
+        </div>
+
+        <!-- Tab List -->
+        <div class="tab-list-section">
+            <?php if (empty($tabs)): ?>
+                <p class="no-results">No tabs found. <?php echo $searchQuery ? 'Try a different search term.' : 'Add some tabs to get started!'; ?></p>
+                <p class="add-new"><a href="/index.php?action=add_tab" class="add-tab-link">Add New Tab</a></p>
+            <?php else: ?>
+                <div class="tab-list">
+                    <?php foreach ($tabs as $t): ?>
+                        <div class="tab-item <?php echo $viewTab === $t['id'] ? 'expanded' : ''; ?> <?php echo $viewTab === $t['id'] ? 'visible' : ''; ?>" 
+                             data-title="<?php echo safeHtml($t['title']); ?>"
+                             data-artist="<?php echo safeHtml($t['artist']); ?>">
+                            <div class="tab-header">
+                                <div class="tab-title">
+                                    <?php if ($viewTab === $t['id']): ?>
+                                        <a href="?action=tabs<?php echo $searchQuery ? '&search=' . urlencode($searchQuery) : ''; ?>" class="collapse-link">
+                                            <h3><?php echo safeHtml($t['title']); ?></h3>
+                                        </a>
+                                    <?php else: ?>
+                                        <a href="?action=tabs<?php echo $searchQuery ? '&search=' . urlencode($searchQuery) : ''; ?>&view_tab=<?php echo $t['id']; ?>" class="expand-link">
+                                            <h3><?php echo safeHtml($t['title']); ?></h3>
+                                        </a>
+                                    <?php endif; ?>
+                                    <div class="tab-meta">
+                                        <p class="author"><?php echo safeHtml($t['author']); ?></p>
+                                        <?php if (!empty($t['key_signature'])): ?>
+                                            <p class="key"><?php echo safeHtml($t['key_signature']); ?></p>
+                                        <?php endif; ?>
+                                        <?php if (!empty($t['leader'])): ?>
+                                            <p class="leader"> <?php echo safeHtml($t['leader']); ?></p>
+                                        <?php endif; ?>
+                                        <p class="category"><?php echo safeHtml($t['category_name'] ?? 'Uncategorized'); ?></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php if ($viewTab === $t['id']): ?>
+                                <div class="tab-container">
+                                    <iframe id="tab-<?php echo $t['id']; ?>" class="tab-frame" srcdoc="<?php echo htmlspecialchars($t['content']); ?>" frameborder="0" width="100%" onload="resizeIframe(this)"></iframe>
+                                </div>
+                                <script>
+                                function resizeIframe(obj) {
+                                    obj.style.height = obj.contentWindow.document.documentElement.scrollHeight + "px";
+                                    obj.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+
+                                // If this tab is expanded on page load, scroll to it
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    const expandedTab = document.querySelector('.tab-item.expanded');
+                                    if (expandedTab) {
+                                        expandedTab.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }
+                                });
+                                </script>
+                                <style>
+                                .tab-container {
+                                    width: 100%;
+                                    margin: 0 auto;
+                                    overflow: hidden;
+                                }
+                                .tab-frame {
+                                    border: none;
+                                    width: 100%;
+                                    min-height: 300px;
+                                }
+                                iframe.tab-frame {
+                                    background: white;
+                                }
+                                </style>
+                                <form method="post" action="/index.php?action=tabs" class="schedule-form">
+                                    <input type="hidden" name="action" value="schedule_tab">
+                                    <input type="hidden" name="tab_id" value="<?php echo (int)$t['id']; ?>">
+                                    <div class="form-group">
+                                        <label>Schedule for:</label>
+                                        <input type="date" name="schedule_date" required>
+                                        <label>Play Order:</label>
+                                        <input type="number" name="display_order" min="1" placeholder="Order number" class="order-input">
+                                        <button type="submit">Schedule</button>
+                                    </div>
+                                </form>
+                                
+                                <?php 
+                                $currentYoutubeLink = $tab->getYoutubeLink($t['id'], date('Y-m-d'));
+                                ?>
+                                <div class="youtube-section">
+                                    <form method="post" action="/index.php?action=tabs" class="youtube-form">
+                                        <input type="hidden" name="action" value="update_youtube">
+                                        <input type="hidden" name="tab_id" value="<?php echo (int)$t['id']; ?>">
+                                        <input type="hidden" name="schedule_date" value="<?php echo date('Y-m-d'); ?>">
+                                        <div class="form-group">
+                                            <div class="youtube-input-group">
+                                                <input type="url" 
+                                                       name="youtube_link" 
+                                                       placeholder="Paste YouTube URL here" 
+                                                       class="youtube-input"
+                                                       value="<?php echo safeHtml($currentYoutubeLink); ?>">
+                                                <button type="submit" class="youtube-submit">Save Link</button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                    <?php if ($currentYoutubeLink): ?>
+                                    <div class="youtube-actions">
+                                        <a href="<?php echo safeHtml($currentYoutubeLink); ?>" 
+                                           class="youtube-link" 
+                                           target="_blank"
+                                           title="Watch on YouTube">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="red">
+                                                <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+                                            </svg>
+                                            Watch Video
+                                        </a>
+                                    </div>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="pagination-controls">
+            <div class="pagination">
+                <?php if (empty($tabs)): ?>
+                <?php else: ?>
+                    <button onclick="changePage(1)">Previous</button>
+                    <button onclick="changePage(2)">1</button>
+                    <button onclick="changePage(3)">2</button>
+                    <button onclick="changePage(4)">3</button>
+                    <button onclick="changePage(5)">Next</button>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        Application made with passion by <a href="https://blueintegrations.com" target="_blank" rel="noopener noreferrer">Blue Integrations</a>
+    </div>
+
+    <style>
+    .pagination-controls {
+        max-width: 800px;
+        margin: 20px auto;
+        text-align: center;
+    }
+
+    .tab-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        font-size: 0.9em;
+        color: #666;
+        margin-top: 5px;
+    }
+
+    .tab-meta p {
+        margin: 0;
+        padding: 2px 8px;
+        background: #f5f5f5;
+        border-radius: 4px;
+    }
+
+    .tab-meta .key {
+        background: #e8f4ff;
+    }
+
+    .tab-meta .leader {
+        background: #fff0e8;
+    }
+
+    .tab-meta .author {
+        background: #f0ffe8;
+    }
+
+    .pagination {
+        display: flex;
+        justify-content: center;
+        gap: 5px;
+        margin: 20px 0;
+        flex-wrap: wrap;
+    }
+
+    .pagination button {
+        background-color: var(--black-light);
+        color: var(--text-light);
+        border: 1px solid var(--gold-dark);
+        padding: 5px 10px;
+        cursor: pointer;
+        border-radius: 4px;
+        min-width: 40px;
+        white-space: nowrap;
+    }
+
+    .pagination button.active {
+        background-color: var(--gold-primary);
+        color: var(--black-dark);
+    }
+
+    .pagination button:hover {
+        background-color: var(--gold-primary);
+        color: var(--black-dark);
+    }
+
+    .pagination button:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+
+    .pagination button:disabled:hover {
+        background-color: var(--black-light);
+        color: var(--text-light);
+    }
+
+    .tab-item {
+        display: none; /* Hide all tabs by default */
+    }
+
+    .tab-item.visible {
+        display: block; /* Show only visible tabs */
+    }
+    
+    .youtube-section {
+        margin-top: 15px;
+        border-top: 1px solid #eee;
+        padding-top: 15px;
+    }
+    
+    .youtube-input-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+    
+    .youtube-input {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .youtube-submit {
+        padding: 8px 15px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .youtube-submit:hover {
+        background-color: #45a049;
+    }
+    
+    .youtube-actions {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .youtube-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 12px;
+        background-color: #fff;
+        border: 1px solid #ff0000;
+        color: #ff0000;
+        border-radius: 4px;
+        text-decoration: none;
+        font-size: 14px;
+        transition: all 0.2s;
+    }
+    
+    .youtube-link:hover {
+        background-color: #ff0000;
+        color: #fff;
+    }
+    
+    .youtube-link:hover svg {
+        fill: #fff;
+    }
+    </style>
+
+    <script>
+    function resizeIframe(obj) {
+        obj.style.height = obj.contentWindow.document.documentElement.scrollHeight + "px";
+        obj.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // Client-side search
+    document.addEventListener('DOMContentLoaded', function() {
+        const clientSearch = document.getElementById('clientSearch');
+        const tabItems = document.querySelectorAll('.tab-item');
+        const itemsPerPage = 20;
+        let currentPage = 1;
+        let filteredTabs = Array.from(tabItems);
+
+        function showPage(page) {
+            const startIndex = (page - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+
+            // Hide all tabs
+            tabItems.forEach(item => {
+                item.classList.remove('visible');
+            });
+
+            // Show only tabs for current page that match search
+            filteredTabs.slice(startIndex, endIndex).forEach(item => {
+                item.classList.add('visible');
+            });
+
+            updatePagination();
+        }
+
+        function updatePagination() {
+            const totalPages = Math.ceil(filteredTabs.length / itemsPerPage);
+            let paginationHTML = '<div class="pagination">';
+            
+            // Previous button
+            if (currentPage > 1) {
+                paginationHTML += `<button onclick="changePage(${currentPage - 1})">Previous</button>`;
+            }
+
+            // Page numbers
+            for (let i = 1; i <= totalPages; i++) {
+                if (
+                    i === 1 || // First page
+                    i === totalPages || // Last page
+                    (i >= currentPage - 2 && i <= currentPage + 2) // Pages around current
+                ) {
+                    paginationHTML += `<button onclick="changePage(${i})" ${i === currentPage ? 'class="active"' : ''}>${i}</button>`;
+                } else if (
+                    (i === 2 && currentPage - 2 > 2) || // Ellipsis after first page
+                    (i === totalPages - 1 && currentPage + 2 < totalPages - 1) // Ellipsis before last page
+                ) {
+                    paginationHTML += '<button disabled>...</button>';
+                }
+            }
+
+            // Next button
+            if (currentPage < totalPages) {
+                paginationHTML += `<button onclick="changePage(${currentPage + 1})">Next</button>`;
+            }
+
+            paginationHTML += '</div>';
+            document.querySelector('.pagination-controls').innerHTML = paginationHTML;
+        }
+
+        // Expose changePage to global scope
+        window.changePage = function(page) {
+            currentPage = page;
+            showPage(currentPage);
+            // If a tab is expanded, make sure it's visible
+            const expandedTab = document.querySelector('.tab-item.expanded');
+            if (expandedTab) {
+                expandedTab.classList.add('visible');
+            }
+        };
+
+        // Search functionality
+        clientSearch.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            
+            // Filter tabs based on search
+            filteredTabs = Array.from(tabItems).filter(item => {
+                const title = item.getAttribute('data-title').toLowerCase();
+                const artist = item.getAttribute('data-artist').toLowerCase();
+                return title.includes(searchTerm) || artist.includes(searchTerm);
+            });
+
+            currentPage = 1; // Reset to first page when searching
+            showPage(currentPage);
+        });
+
+        // Initial page load
+        showPage(1);
+
+        // If a tab is expanded on page load, make sure it's visible
+        const expandedTab = document.querySelector('.tab-item.expanded');
+        if (expandedTab) {
+            expandedTab.classList.add('visible');
+            // Find which page the expanded tab should be on
+            const expandedTabIndex = filteredTabs.indexOf(expandedTab);
+            if (expandedTabIndex !== -1) {
+                const page = Math.floor(expandedTabIndex / itemsPerPage) + 1;
+                changePage(page);
+            }
+            expandedTab.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
+    </script>
+
+    <style>
+    .quick-search {
+        margin-top: 10px;
+        width: 100%;
+        padding: 8px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+    }
+
+    .tab-item.hidden {
+        display: none;
+    }
+    </style>
+</body>
+</html>
