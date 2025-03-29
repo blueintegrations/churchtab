@@ -136,68 +136,41 @@ function safeHtml($value) {
             </form>
         </div>
 
-        <div class="schedule-container">
-            <h1>Schedule for <?php echo date('F j, Y', strtotime($selectedDate)); ?></h1>
-            
+        <div class="schedule-list">
+            <h2>Scheduled Songs for <?php echo date('F j, Y', strtotime($selectedDate)); ?></h2>
             <?php if (empty($scheduledTabs)): ?>
-                <p class="no-songs">No songs scheduled for this date.</p>
+                <p>No songs scheduled for this date.</p>
             <?php else: ?>
-                <?php 
-                $currentSetList = null;
-                foreach ($scheduledTabs as $scheduledTab): 
-                    $setListId = isset($scheduledTab['set_list_id']) ? $scheduledTab['set_list_id'] : 0;
-                    if ($setListId !== $currentSetList):
-                        if ($currentSetList !== null) {
-                            echo '</div>'; // Close previous scheduled-tabs
-                        }
-                        $currentSetList = $setListId;
-                ?>
-                    <div class="set-list-group">
-                        <h2 class="set-list-heading">
-                            <?php 
-                            if ($setListId === 0 || empty($scheduledTab['set_list_name'])) {
-                                echo 'Unassigned Songs';
-                            } else {
-                                echo safeHtml($scheduledTab['set_list_name']);
-                            }
-                            ?>
-                        </h2>
-                        <div class="scheduled-tabs">
-                <?php 
-                    endif;
-                ?>
-                            <div class="schedule-item <?php echo $viewTab === $scheduledTab['id'] ? 'expanded' : ''; ?>">
-                                <div class="schedule-header">
-                                    <div class="order-number"><?php echo $scheduledTab['display_order']; ?></div>
-                                    <div class="song-info">
+                <div class="scheduled-tabs">
+                    <?php foreach ($scheduledTabs as $scheduledTab): ?>
+                        <div class="schedule-item <?php echo $viewTab === $scheduledTab['id'] ? 'expanded' : ''; ?>">
+                            <div class="schedule-header">
+                                <div class="order-number"><?php echo safeHtml($scheduledTab['display_order']); ?></div>
+                                <div class="song-info">
+                                    <div class="title-row">
                                         <h3>
                                             <?php if ($viewTab === $scheduledTab['id']): ?>
-                                                <a href="?action=schedule&date=<?php echo $selectedDate; ?>" class="collapse-link">
+                                                <a href="?action=schedule&date=<?php echo safeHtml($selectedDate); ?>" class="collapse-link">
                                                     <?php echo safeHtml($scheduledTab['title']); ?>
                                                 </a>
                                             <?php else: ?>
-                                                <a href="?action=schedule&date=<?php echo $selectedDate; ?>&view_tab=<?php echo $scheduledTab['id']; ?>" class="expand-link">
+                                                <a href="?action=schedule&date=<?php echo safeHtml($selectedDate); ?>&view_tab=<?php echo $scheduledTab['id']; ?>" class="expand-link">
                                                     <?php echo safeHtml($scheduledTab['title']); ?>
                                                 </a>
                                             <?php endif; ?>
                                         </h3>
-                                        <div class="tab-meta">
-                                            <?php if (!empty($scheduledTab['artist'])): ?>
-                                                <p class="artist"><?php echo safeHtml($scheduledTab['artist']); ?></p>
-                                            <?php endif; ?>
-                                            <?php if (!empty($scheduledTab['author'])): ?>
-                                                <p class="author"><?php echo safeHtml($scheduledTab['author']); ?></p>
-                                            <?php endif; ?>
-                                            <?php if (!empty($scheduledTab['key_signature'])): ?>
-                                                <p class="key"><?php echo safeHtml($scheduledTab['key_signature']); ?></p>
-                                            <?php endif; ?>
-                                            <?php if (!empty($scheduledTab['category_name'])): ?>
-                                                <p class="category"><?php echo safeHtml($scheduledTab['category_name']); ?></p>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                    <div class="actions">
-                                        <?php if (!empty($scheduledTab['youtube_link'])): ?>
+                                        <div class="title-actions">
+                                            <a href="?action=song_only&id=<?php echo $scheduledTab['id']; ?>" 
+                                               class="view-only-link" 
+                                               onclick="window.open(this.href, 'song-window', 'width=800,height=600'); return false;"
+                                               title="Open song in new window">
+                                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+                                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                                    <polyline points="15 3 21 3 21 9"></polyline>
+                                                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                                                </svg>
+                                            </a>
+                                            <?php if (!empty($scheduledTab['youtube_link'])): ?>
                                             <a href="<?php echo safeHtml($scheduledTab['youtube_link']); ?>" 
                                                class="youtube-link-small" 
                                                target="_blank"
@@ -206,62 +179,80 @@ function safeHtml($value) {
                                                     <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
                                                 </svg>
                                             </a>
+                                            <?php endif; ?>
+                                            <form method="post" style="display: inline;" onsubmit="return confirm('Remove this song from the schedule?');">
+                                                <input type="hidden" name="remove_tab_id" value="<?php echo $scheduledTab['id']; ?>">
+                                                <input type="hidden" name="schedule_date" value="<?php echo safeHtml($selectedDate); ?>">
+                                                <button type="submit" class="delete-button" title="Remove from schedule">
+                                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+                                                        <path d="M18 6L6 18M6 6l12 12"></path>
+                                                    </svg>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                    <div class="tab-meta">
+                                        <?php if (!empty($scheduledTab['artist'])): ?>
+                                            <p class="artist"><?php echo safeHtml($scheduledTab['artist']); ?></p>
                                         <?php endif; ?>
-                                        <a href="?action=song_only&id=<?php echo $scheduledTab['id']; ?>" 
-                                           class="view-only-link" 
-                                           onclick="window.open(this.href, 'song-window', 'width=800,height=600'); return false;">
-                                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
-                                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                                <polyline points="15 3 21 3 21 9"></polyline>
-                                                <line x1="10" y1="14" x2="21" y2="3"></line>
-                                            </svg>
-                                        </a>
-                                        <form method="post" style="display: inline;">
-                                            <input type="hidden" name="remove_tab_id" value="<?php echo $scheduledTab['id']; ?>">
-                                            <input type="hidden" name="schedule_date" value="<?php echo $selectedDate; ?>">
-                                            <button type="submit" class="delete-button" onclick="return confirm('Remove this song from the schedule?');">
-                                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
-                                                    <path d="M18 6L6 18M6 6l12 12"></path>
-                                                </svg>
-                                            </button>
-                                        </form>
+                                        <?php if (!empty($scheduledTab['author'])): ?>
+                                            <p class="author"><?php echo safeHtml($scheduledTab['author']); ?></p>
+                                        <?php endif; ?>
+                                        <?php if (!empty($scheduledTab['key_signature'])): ?>
+                                            <p class="key"><?php echo safeHtml($scheduledTab['key_signature']); ?></p>
+                                        <?php endif; ?>
+                                        <?php if (!empty($scheduledTab['leader'])): ?>
+                                            <p class="leader"><?php echo safeHtml($scheduledTab['leader']); ?></p>
+                                        <?php endif; ?>
+                                        <?php if (!empty($scheduledTab['category_name'])): ?>
+                                            <p class="category"><?php echo safeHtml($scheduledTab['category_name']); ?></p>
+                                        <?php else: ?>
+                                            <p class="category">Uncategorized</p>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
-                                <?php if ($viewTab === $scheduledTab['id']): ?>
-                                    <div class="tab-container">
-                                        <iframe id="tab-<?php echo $scheduledTab['id']; ?>" 
-                                                class="tab-frame" 
-                                                srcdoc="<?php echo htmlspecialchars($scheduledTab['content']); ?>" 
-                                                frameborder="0" 
-                                                width="100%" 
-                                                onload="resizeIframe(this)">
-                                        </iframe>
-                                    </div>
-                                <?php endif; ?>
                             </div>
-                <?php endforeach; ?>
-                <?php if ($currentSetList !== null): ?>
-                    </div><!-- Close last scheduled-tabs -->
-                <?php endif; ?>
+                            <?php if ($viewTab === $scheduledTab['id']): ?>
+                                <div class="tab-container">
+                                    <iframe id="tab-<?php echo $scheduledTab['id']; ?>" class="tab-frame" srcdoc="<?php echo htmlspecialchars($scheduledTab['content']); ?>" frameborder="0" width="100%" onload="resizeIframe(this)"></iframe>
+                                </div>
+                                <script>
+                                function resizeIframe(obj) {
+                                    obj.style.height = obj.contentWindow.document.documentElement.scrollHeight + "px";
+                                    obj.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+                                </script>
+                                <style>
+                                .tab-container {
+                                    width: 100%;
+                                    margin: 0 auto;
+                                    overflow: hidden;
+                                }
+                                .tab-frame {
+                                    border: none;
+                                    width: 100%;
+                                    min-height: 300px;
+                                }
+                                iframe.tab-frame {
+                                    background: white;
+                                }
+                                </style>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             <?php endif; ?>
         </div>
+    </div>
+
+    <div class="footer">
+        Application made with passion by <a href="https://blueintegrations.com" target="_blank" rel="noopener noreferrer">Blue Integrations</a>
+    </div>
 
     <style>
-    .set-list-group {
-        margin-bottom: 30px;
-    }
-    
-    .set-list-heading {
-        background: #4CAF50;
-        color: #fff;
-        margin: 0 0 15px 0;
-        padding: 10px 15px;
-        border-radius: 4px;
-        font-size: 1.2em;
-    }
-    
     .schedule-item {
         position: relative;
+        padding: 15px;
         background-color: var(--black-light);
         border: 1px solid var(--gold-dark);
         border-radius: 8px;
@@ -276,7 +267,6 @@ function safeHtml($value) {
     .schedule-header {
         display: flex;
         align-items: center;
-        padding: 15px;
         gap: 15px;
     }
     
@@ -302,6 +292,19 @@ function safeHtml($value) {
         font-size: 1.2em;
     }
     
+    .tab-meta {
+        margin: 5px 0 0;
+    }
+    
+    .tab-meta p {
+        margin: 5px 0;
+        font-size: 0.9em;
+    }
+    
+    .artist, .author, .key, .leader, .category {
+        color: var(--gold-primary);
+    }
+    
     .expand-link, .collapse-link {
         color: var(--text-light);
         text-decoration: none;
@@ -321,23 +324,7 @@ function safeHtml($value) {
         color: var(--gold-light);
     }
     
-    .tab-meta {
-        margin: 5px 0 0;
-    }
-    
-    .tab-meta p {
-        margin: 5px 0;
-        font-size: 0.9em;
-        color: var(--gold-primary);
-    }
-    
-    .actions {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-    }
-    
-    .youtube-link-small, .view-only-link, .delete-button {
+    .youtube-link-small {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -345,9 +332,9 @@ function safeHtml($value) {
         height: 28px;
         padding: 4px;
         border-radius: 4px;
-        background: none;
-        border: none;
-        cursor: pointer;
+        color: #ff0000;
+        text-decoration: none;
+        margin: 0 4px;
         transition: background-color 0.2s;
     }
     
@@ -355,23 +342,16 @@ function safeHtml($value) {
         background-color: rgba(255, 0, 0, 0.1);
     }
     
-    .view-only-link:hover {
-        background-color: rgba(255, 255, 255, 0.1);
+    .title-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
     }
     
-    .delete-button:hover {
-        background-color: rgba(255, 0, 0, 0.1);
-    }
-    
-    .tab-container {
-        padding: 0 15px 15px;
-    }
-    
-    .tab-frame {
-        width: 100%;
-        min-height: 300px;
-        border: none;
-        background: var(--black-dark);
+    .title-actions > * {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
     </style>
 </body>

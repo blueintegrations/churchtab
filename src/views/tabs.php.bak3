@@ -177,7 +177,16 @@ function formatContent($content) {
                                         <input type="hidden" name="tab_id" value="<?php echo (int)$t['id']; ?>">
                                         <input type="hidden" name="schedule_date" value="<?php echo $selectedDate; ?>">
                                         <div class="form-group">
-                                            
+                                            <?php if (count($scheduledDates) > 0): ?>
+                                            <div class="date-select-group">
+                                                <label for="youtube_date_<?php echo $t['id']; ?>">Scheduled Date:</label>
+                                                <select name="schedule_date" id="youtube_date_<?php echo $t['id']; ?>" class="date-select">
+                                                    <?php foreach ($scheduledDates as $date): ?>
+                                                    <option value="<?php echo $date; ?>"><?php echo date('F j, Y', strtotime($date)); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                            <?php endif; ?>
                                             <div class="youtube-input-group">
                                                 <input type="url" 
                                                        name="youtube_link" 

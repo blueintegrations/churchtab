@@ -62,27 +62,33 @@ class Tab {
     }
 
     public function getScheduledTabs($date) {
-        $query = "SELECT t.*, c.name as category_name, s.display_order, s.youtube_link,
-                        COALESCE(s.set_list_id, 0) as set_list_id,
-                        sl.name as set_list_name
+        $query = "SELECT t.*, c.name as category_name, s.display_order, s.youtube_link 
                  FROM tabs t 
                  JOIN song_schedule s ON t.id = s.tab_id 
                  LEFT JOIN categories c ON t.category_id = c.id 
-                 LEFT JOIN set_lists sl ON s.set_list_id = sl.id
                  WHERE s.scheduled_date = :date 
-                 ORDER BY COALESCE(s.set_list_id, 0) ASC, s.display_order ASC, t.title ASC";
+                 ORDER BY s.display_order ASC";
         $params = [':date' => $date];
         return $this->db->query($query, $params)->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function scheduleTab($tabId, $date, $displayOrder = null, $setListId = null) {
-        $query = "INSERT INTO song_schedule (tab_id, scheduled_date, display_order, set_list_id) 
-                 VALUES (:tab_id, :date, :display_order, :set_list_id)";
+    public function scheduleTab($tabId, $date, $order = null, $youtubeLink = null) {
+        if ($order === null) {
+            $query = "SELECT COALESCE(MAX(display_order), 0) + 1 as next_order 
+                     FROM song_schedule 
+                     WHERE scheduled_date = :date";
+            $params = [':date' => $date];
+            $result = $this->db->query($query, $params)->fetch(PDO::FETCH_ASSOC);
+            $order = $result['next_order'];
+        }
+
+        $query = "INSERT INTO song_schedule (tab_id, scheduled_date, display_order, youtube_link) 
+                 VALUES (:tab_id, :date, :order, :youtube_link)";
         $params = [
             ':tab_id' => $tabId,
             ':date' => $date,
-            ':display_order' => $displayOrder,
-            ':set_list_id' => $setListId
+            ':order' => $order,
+            ':youtube_link' => $youtubeLink
         ];
         return $this->db->query($query, $params);
     }
@@ -117,8 +123,8 @@ class Tab {
         
         if (!$result) {
             error_log("Song $tabId is not scheduled for date $date. Scheduling it first.");
-            // If not scheduled, schedule it first with a default display order of 1
-            $this->scheduleTab($tabId, $date, 1);
+            // If not scheduled, schedule it first
+            $this->scheduleTab($tabId, $date);
         }
         
         // Now update the YouTube link
@@ -158,23 +164,5 @@ class Tab {
         $params = [':tab_id' => $tabId];
         $result = $this->db->query($query, $params)->fetchAll(PDO::FETCH_COLUMN);
         return $result;
-    }
-
-    public function getSetLists() {
-        $query = "SELECT * FROM set_lists ORDER BY name ASC";
-        return $this->db->query($query)->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    public function getScheduledSongs($date) {
-        $query = "SELECT t.*, s.display_order, s.youtube_link, 
-                        COALESCE(s.set_list_id, 0) as set_list_id, 
-                        sl.name as set_list_name
-                 FROM song_schedule s 
-                 JOIN tabs t ON s.tab_id = t.id 
-                 LEFT JOIN set_lists sl ON s.set_list_id = sl.id
-                 WHERE s.scheduled_date = :date 
-                 ORDER BY COALESCE(s.set_list_id, 0) ASC, s.display_order ASC, t.title ASC";
-        $params = [':date' => $date];
-        return $this->db->query($query, $params)->fetchAll(PDO::FETCH_ASSOC);
     }
 }
